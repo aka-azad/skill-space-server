@@ -165,8 +165,8 @@ async function run() {
       res.send(result);
     });
     app.get("/class/:id", async (req, res) => {
-      const id = req.params.id
-      const filter = {_id: new ObjectId(id)}
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
       const result = await classesCollection.findOne(filter);
       res.send(result);
     });
@@ -182,26 +182,11 @@ async function run() {
       const updatedClass = req.body;
       const filter = { _id: new ObjectId(id) };
 
-      // Log the ID and filter
-      console.log("ID:", id);
-      console.log("Filter:", filter);
-
-      // Check if the document exists
-      const existingClass = await classesCollection.findOne(filter);
-      console.log("Existing Class:", existingClass);
-      if (!existingClass) {
-        return res.status(404).send({ message: "Class not found" });
-      }
-
-      // Prepare the update document
       const updateDoc = {
         $set: { ...updatedClass },
       };
-      console.log("Update Document:", updateDoc);
 
-      // Perform the update
       const result = await classesCollection.updateOne(filter, updateDoc);
-      console.log("Update Result:", result);
       res.send(result);
     });
 
