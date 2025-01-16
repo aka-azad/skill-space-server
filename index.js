@@ -109,7 +109,6 @@ async function run() {
     app.get("/users", async (req, res) => {
       const query = req.query.query || "";
 
-      // Build the search filter
       const searchFilter = {
         $or: [
           { displayName: { $regex: query, $options: "i" } },
@@ -165,14 +164,44 @@ async function run() {
       const result = await classesCollection.find().toArray();
       res.send(result);
     });
+    app.get("/class/:id", async (req, res) => {
+      const id = req.params.id
+      const filter = {_id: new ObjectId(id)}
+      const result = await classesCollection.findOne(filter);
+      res.send(result);
+    });
+    app.get("/classes/available", async (req, res) => {
+      const result = await classesCollection
+        .find({ status: "accepted" })
+        .toArray();
+      res.send(result);
+    });
+
     app.put("/classes/:id", async (req, res) => {
       const id = req.params.id;
       const updatedClass = req.body;
       const filter = { _id: new ObjectId(id) };
+
+      // Log the ID and filter
+      console.log("ID:", id);
+      console.log("Filter:", filter);
+
+      // Check if the document exists
+      const existingClass = await classesCollection.findOne(filter);
+      console.log("Existing Class:", existingClass);
+      if (!existingClass) {
+        return res.status(404).send({ message: "Class not found" });
+      }
+
+      // Prepare the update document
       const updateDoc = {
-        $set: updatedClass,
+        $set: { ...updatedClass },
       };
+      console.log("Update Document:", updateDoc);
+
+      // Perform the update
       const result = await classesCollection.updateOne(filter, updateDoc);
+      console.log("Update Result:", result);
       res.send(result);
     });
 
