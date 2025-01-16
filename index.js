@@ -40,6 +40,8 @@ async function run() {
     const usersCollection = skillSpaceDB.collection("users");
     const teachersCollection = skillSpaceDB.collection("teachers");
     const classesCollection = skillSpaceDB.collection("classes");
+    const paymentsCollection = skillSpaceDB.collection("payments");
+    const enrollmentsCollection = skillSpaceDB.collection("enrollments");
 
     // JWT generation endpoint
     app.post("/jwt", (req, res) => {
@@ -188,6 +190,83 @@ async function run() {
 
       const result = await classesCollection.updateOne(filter, updateDoc);
       res.send(result);
+    });
+
+    //payment related apis
+
+    app.post("/payments", async (req, res) => {
+      const { classId, amount, userEmail } = req.body;
+
+      try {
+        const existingEnrollment = await enrollmentsCollection.findOne({
+          classId,
+          userEmail,
+        });
+
+        if (existingEnrollment) {
+          return res
+            .status(400)
+            .send({ message: "User already enrolled in this class" });
+        }
+
+        // Create payment transaction
+        const payment = {
+          classId,
+          amount,
+          userEmail,
+          date: new Date().toISOString(),
+        };
+
+        const paymentResult = await paymentsCollection.insertOne(payment);
+
+        // Create enrollment entry
+        const enrollment = {
+          classId,
+          userEmail,
+          date: new Date().toISOString(),
+        };
+
+        const enrollmentResult = await enrollmentsCollection.insertOne(
+          enrollment
+        );
+
+        // Update enrollment count in class
+        const classUpdateResult = await classesCollection.updateOne(
+          { _id: new ObjectId(classId) },
+          { $inc: { totalEnrolment: 1 } }
+        );
+
+        res.send({
+          message: "Payment processed successfully",
+          paymentId: paymentResult.insertedId,
+          enrollmentId: enrollmentResult.insertedId,
+          updatedEnrolmentCount: classUpdateResult.modifiedCount,
+        });
+      } catch (error) {
+        console.error("Error processing payment:", error);
+        res.status(500).send({ message: "Error processing payment" });
+      }
+    });
+    
+    app.get("/enrollments/:userEmail", async (req, res) => {
+      const { userEmail } = req.params;
+
+      try {
+        const enrollments = await enrollmentsCollection
+          .find({ userEmail })
+          .toArray();
+        const classIds = enrollments.map(
+          (enrollment) => new ObjectId(enrollment.classId)
+        );
+        const classes = await classesCollection
+          .find({ _id: { $in: classIds } })
+          .toArray();
+
+        res.send(classes);
+      } catch (error) {
+        console.error("Error fetching enrolled classes:", error);
+        res.status(500).send({ message: "Error fetching enrolled classes" });
+      }
     });
 
     // Send a ping to confirm a successful connection
