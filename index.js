@@ -1,4 +1,4 @@
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
@@ -39,6 +39,7 @@ async function run() {
     const skillSpaceDB = client.db("Skill-Space");
     const usersCollection = skillSpaceDB.collection("users");
     const teachersCollection = skillSpaceDB.collection("teachers");
+    const classesCollection = skillSpaceDB.collection("classes");
 
     // JWT generation endpoint
     app.post("/jwt", (req, res) => {
@@ -83,12 +84,60 @@ async function run() {
 
       res.send(result);
     });
+    app.put("/teachers/:id", async (req, res) => {
+      const id = req.params;
+      const data = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = { $set: data };
+      const result = await teachersCollection.updateOne(filter, updateDoc);
+
+      res.send(result);
+    });
+    app.put("/teachers-profile/:id", async (req, res) => {
+      const id = req.params;
+      const data = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = { $set: data };
+      const find = await teachersCollection.findOne(filter);
+      const userFilter = { email: find.email };
+      const result = await usersCollection.updateOne(userFilter, updateDoc);
+      res.send(result);
+    });
 
     //admin token verification required
 
     app.get("/users", async (req, res) => {
-      const users = await usersCollection.find().toArray();
+      const query = req.query.query || "";
+
+      // Build the search filter
+      const searchFilter = {
+        $or: [
+          { displayName: { $regex: query, $options: "i" } },
+          { email: { $regex: query, $options: "i" } },
+        ],
+      };
+
+      const users = await usersCollection
+        .find(query ? searchFilter : {})
+        .toArray();
       res.send(users);
+    });
+
+    app.get("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const filter = { email: email };
+      const user = await usersCollection.findOne(filter);
+      res.send(user);
+    });
+    app.put("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const data = req.body;
+      const filter = { email: email };
+      const updateDoc = {
+        $set: data,
+      };
+      const result = await usersCollection.updateOne(filter, updateDoc);
+      res.send(result);
     });
 
     //admin token verification required
@@ -107,10 +156,26 @@ async function run() {
 
     //class related apis
     //token required
-    app.post('classes', async (req, res) => {
-      const classInfo = req.body
-      
-    })
+    app.post("/classes", async (req, res) => {
+      const classInfo = req.body;
+      const result = await classesCollection.insertOne(classInfo);
+      res.send(result);
+    });
+    app.get("/classes", async (req, res) => {
+      const result = await classesCollection.find().toArray();
+      res.send(result);
+    });
+    app.put("/classes/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedClass = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: updatedClass,
+      };
+      const result = await classesCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
