@@ -42,6 +42,9 @@ async function run() {
     const classesCollection = skillSpaceDB.collection("classes");
     const paymentsCollection = skillSpaceDB.collection("payments");
     const enrollmentsCollection = skillSpaceDB.collection("enrollments");
+    const assignmentsCollection = skillSpaceDB.collection("assignments");
+    const submissionsCollection = skillSpaceDB.collection("submissions");
+    const evaluationsCollection = skillSpaceDB.collection("evaluations");
 
     // JWT generation endpoint
     app.post("/jwt", (req, res) => {
@@ -192,6 +195,18 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/classes/teacher/:email", async (req, res) => {
+      const { email } = req.params;
+
+      try {
+        const classes = await classesCollection.find({ email }).toArray();
+        res.send(classes);
+      } catch (error) {
+        console.error("Error fetching classes:", error);
+        res.status(500).send({ message: "Error fetching classes" });
+      }
+    });
+
     //payment related apis
 
     app.post("/payments", async (req, res) => {
@@ -209,7 +224,6 @@ async function run() {
             .send({ message: "User already enrolled in this class" });
         }
 
-        // Create payment transaction
         const payment = {
           classId,
           amount,
@@ -219,7 +233,6 @@ async function run() {
 
         const paymentResult = await paymentsCollection.insertOne(payment);
 
-        // Create enrollment entry
         const enrollment = {
           classId,
           userEmail,
@@ -230,7 +243,6 @@ async function run() {
           enrollment
         );
 
-        // Update enrollment count in class
         const classUpdateResult = await classesCollection.updateOne(
           { _id: new ObjectId(classId) },
           { $inc: { totalEnrolment: 1 } }
@@ -247,7 +259,7 @@ async function run() {
         res.status(500).send({ message: "Error processing payment" });
       }
     });
-    
+
     app.get("/enrollments/:userEmail", async (req, res) => {
       const { userEmail } = req.params;
 
@@ -266,6 +278,121 @@ async function run() {
       } catch (error) {
         console.error("Error fetching enrolled classes:", error);
         res.status(500).send({ message: "Error fetching enrolled classes" });
+      }
+    });
+
+    //assignments
+    app.post("/assignments", async (req, res) => {
+      const { classId, title, description, deadline } = req.body;
+
+      try {
+        const newAssignment = {
+          classId,
+          title,
+          description,
+          deadline,
+          dateCreated: new Date().toISOString(),
+        };
+
+        const result = await assignmentsCollection.insertOne(newAssignment);
+        res.send(result);
+      } catch (error) {
+        console.error("Error creating assignment:", error);
+        res.status(500).send({ message: "Error creating assignment" });
+      }
+    });
+
+    app.get("/submissions/class/:id/count", async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        const submissionCount = await submissionsCollection.countDocuments({
+          classId: id,
+        });
+        res.send({ count: submissionCount });
+      } catch (error) {
+        console.error("Error fetching submission count:", error);
+        res.status(500).send({ message: "Error fetching submission count" });
+      }
+    });
+
+    app.get("/assignments/class/:id", async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        const assignments = await assignmentsCollection
+          .find({ classId: id })
+          .toArray();
+        res.send(assignments);
+      } catch (error) {
+        console.error("Error fetching assignments:", error);
+        res.status(500).send({ message: "Error fetching assignments" });
+      }
+    });
+
+    app.post("/assignments/submit", async (req, res) => {
+      const { assignmentId, userEmail, classId, submissionLink } = req.body;
+      try {
+        const existingSubmission = await submissionsCollection.findOne({
+          assignmentId,
+          userEmail,
+        });
+        if (existingSubmission) {
+          return res
+            .status(400)
+            .send({ message: "Assignment already submitted" });
+        }
+
+        const submission = {
+          assignmentId,
+          userEmail,
+          classId,
+          submissionLink,
+          date: new Date().toISOString(),
+        };
+
+        const submissionResult = await submissionsCollection.insertOne(
+          submission
+        );
+
+        const assignmentUpdateResult = await assignmentsCollection.updateOne(
+          { _id: new ObjectId(assignmentId) },
+          { $inc: { submissionCount: 1 } }
+        );
+
+        res.send({
+          message: "Assignment submitted successfully",
+          submissionId: submissionResult.insertedId,
+          updatedSubmissionCount: assignmentUpdateResult.modifiedCount,
+        });
+      } catch (error) {
+        console.error("Error submitting assignment:", error);
+        res.status(500).send({ message: "Error submitting assignment" });
+      }
+    });
+    app.post("/evaluations", async (req, res) => {
+      const { classId, userEmail, description, rating } = req.body;
+
+      try {
+        const evaluation = {
+          classId,
+          userEmail,
+          description,
+          rating,
+          date: new Date().toISOString(),
+        };
+
+        const evaluationResult = await evaluationsCollection.insertOne(
+          evaluation
+        );
+
+        res.send({
+          message: "Evaluation submitted successfully",
+          evaluationId: evaluationResult.insertedId,
+        });
+      } catch (error) {
+        console.error("Error submitting evaluation:", error);
+        res.status(500).send({ message: "Error submitting evaluation" });
       }
     });
 
