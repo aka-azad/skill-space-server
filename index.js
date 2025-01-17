@@ -181,6 +181,21 @@ async function run() {
         .toArray();
       res.send(result);
     });
+    app.get("/classes/popular", async (req, res) => {
+      try {
+        const popularClasses = await classesCollection
+          .find({})
+          .sort({ totalEnrolment: -1 })
+          .limit(6)
+          .toArray();
+
+        res.send(popularClasses);
+      } catch (error) {
+        console.error("Error fetching popular classes:", error);
+        res.status(500).send({ message: "Error fetching popular classes" });
+      }
+    });
+
     app.delete("/classes/:id", async (req, res) => {
       const { id } = req.params;
 
@@ -389,7 +404,7 @@ async function run() {
       }
     });
     app.post("/evaluations", async (req, res) => {
-      const { classId, userEmail, description, rating } = req.body;
+      const { classId, userEmail, userImage, description, rating } = req.body;
 
       try {
         const evaluation = {
@@ -397,6 +412,7 @@ async function run() {
           userEmail,
           description,
           rating,
+          userImage,
           date: new Date().toISOString(),
         };
 
@@ -411,6 +427,16 @@ async function run() {
       } catch (error) {
         console.error("Error submitting evaluation:", error);
         res.status(500).send({ message: "Error submitting evaluation" });
+      }
+    });
+    app.get("/evaluations", async (req, res) => {
+      try {
+        const evaluations = await evaluationsCollection.find({}).toArray();
+
+        res.send(evaluations);
+      } catch (error) {
+        console.error("Error fetching feedbacks:", error);
+        res.status(500).send({ message: "Error fetching feedbacks" });
       }
     });
 
