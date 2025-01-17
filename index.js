@@ -240,6 +240,25 @@ async function run() {
       }
     });
 
+    app.get('/stats', async (req, res) => {
+      try {
+        const totalUsers = await usersCollection.countDocuments();
+        const totalClasses = await classesCollection.countDocuments();
+        const totalEnrollments = await classesCollection.aggregate([
+          { $group: { _id: null, totalEnrollment: { $sum: "$totalEnrolment" } } }
+        ]).toArray();
+    
+        res.send({
+          totalUsers,
+          totalClasses,
+          totalEnrollments: totalEnrollments[0].totalEnrollment
+        });
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+        res.status(500).send({ message: 'Error fetching stats' });
+      }
+    });
+    
     //payment related apis
 
     app.post("/payments", async (req, res) => {
