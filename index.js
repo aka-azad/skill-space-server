@@ -181,6 +181,24 @@ async function run() {
         .toArray();
       res.send(result);
     });
+    app.delete("/classes/:id", async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        const deleteResult = await classesCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        if (deleteResult.deletedCount === 0) {
+          return res.status(404).send({ message: "Class not found" });
+        }
+
+        res.send({ message: "Class deleted successfully" });
+      } catch (error) {
+        console.error("Error deleting class:", error);
+        res.status(500).send({ message: "Error deleting class" });
+      }
+    });
 
     app.put("/classes/:id", async (req, res) => {
       const id = req.params.id;
