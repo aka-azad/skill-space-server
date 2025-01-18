@@ -128,18 +128,24 @@ async function run() {
 
     app.get("/users", verifyToken, async (req, res) => {
       const query = req.query.query || "";
-
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
       const searchFilter = {
         $or: [
           { displayName: { $regex: query, $options: "i" } },
           { email: { $regex: query, $options: "i" } },
         ],
       };
-
       const users = await usersCollection
         .find(query ? searchFilter : {})
+        .skip(skip)
+        .limit(limit)
         .toArray();
-      res.send(users);
+      const totalUsers = await usersCollection.countDocuments(
+        query ? searchFilter : {}
+      );
+      res.send({ users, totalUsers });
     });
 
     app.get("/users/:email", async (req, res) => {
@@ -148,6 +154,7 @@ async function run() {
       const user = await usersCollection.findOne(filter);
       res.send(user);
     });
+
     app.put("/users/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const data = req.body;
@@ -162,8 +169,16 @@ async function run() {
     //admin token verification required
 
     app.get("/teachers", verifyToken, async (req, res) => {
-      const teachers = await teachersCollection.find().toArray();
-      res.send(teachers);
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+      const teachers = await teachersCollection
+        .find()
+        .skip(skip)
+        .limit(limit)
+        .toArray();
+      const totalTeachers = await teachersCollection.countDocuments();
+      res.send({ teachers, totalTeachers });
     });
 
     //class related apis
@@ -173,10 +188,20 @@ async function run() {
       const result = await classesCollection.insertOne(classInfo);
       res.send(result);
     });
+
     app.get("/classes", verifyToken, async (req, res) => {
-      const result = await classesCollection.find().toArray();
-      res.send(result);
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+      const classes = await classesCollection
+        .find()
+        .skip(skip)
+        .limit(limit)
+        .toArray();
+      const totalClasses = await classesCollection.countDocuments();
+      res.send({ classes, totalClasses });
     });
+
     app.get("/class/:id", async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
