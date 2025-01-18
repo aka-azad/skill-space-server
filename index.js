@@ -4,6 +4,7 @@ require("dotenv").config();
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -302,7 +303,7 @@ async function run() {
     //payment related apis
 
     app.post("/payments", verifyToken, async (req, res) => {
-      const { classId, amount, userEmail } = req.body;
+      const { classId, amount, userEmail, transactionId } = req.body;
 
       try {
         const existingEnrollment = await enrollmentsCollection.findOne({
@@ -320,6 +321,7 @@ async function run() {
           classId,
           amount,
           userEmail,
+          transactionId,
           date: new Date().toISOString(),
         };
 
@@ -351,7 +353,20 @@ async function run() {
         res.status(500).send({ message: "Error processing payment" });
       }
     });
-
+    // Endpoint to check if user is already enrolled in the class
+    app.get("/enrollments/check", verifyToken, async (req, res) => {
+      const { classId, userEmail } = req.query;
+      try {
+        const existingEnrollment = await enrollmentsCollection.findOne({
+          classId,
+          userEmail,
+        });
+        res.send({ exists: !!existingEnrollment });
+      } catch (error) {
+        console.error("Error checking enrollment:", error);
+        res.status(500).send({ message: "Error checking enrollment" });
+      }
+    });
     app.get("/enrollments/:userEmail", verifyToken, async (req, res) => {
       const { userEmail } = req.params;
 
@@ -497,6 +512,22 @@ async function run() {
         console.error("Error fetching feedbacks:", error);
         res.status(500).send({ message: "Error fetching feedbacks" });
       }
+    });
+
+    // payment intent
+
+    app.post("/create-payment-intent", verifyToken, async (req, res) => {
+      const data = req.body;
+      const amount = 100 * data.price;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
     });
 
     // Send a ping to confirm a successful connection
