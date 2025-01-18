@@ -52,13 +52,27 @@ async function run() {
       if (!email) {
         return res.status(400).send({ message: "Email is required" });
       }
-      // Generate JWT
       const token = jwt.sign({ email }, process.env.JWT_SECRET, {
         expiresIn: "3h",
       });
       res.send({ token });
     });
 
+    const verifyToken = (req, res, next) => {
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "unauthorized access" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: "unauthorized access" });
+        }
+        req.decoded = decoded;
+        next();
+      });
+    };
+
+    // user related apis
     app.post("/users", async (req, res) => {
       const userCredential = req.body;
       const userEmail = req.body.email;
@@ -69,6 +83,7 @@ async function run() {
       if (!oldUser) {
         const result = await usersCollection.insertOne({
           ...userCredential,
+          role: "student",
           userCreated: new Date().toISOString(),
         });
         res.send(result);
@@ -82,14 +97,14 @@ async function run() {
     });
 
     //token verification needed
-    app.post("/teachers", async (req, res) => {
+    app.post("/teachers", verifyToken, async (req, res) => {
       const data = req.body;
 
       const result = await teachersCollection.insertOne(data);
 
       res.send(result);
     });
-    app.put("/teachers/:id", async (req, res) => {
+    app.put("/teachers/:id", verifyToken, async (req, res) => {
       const id = req.params;
       const data = req.body;
       const filter = { _id: new ObjectId(id) };
@@ -98,7 +113,7 @@ async function run() {
 
       res.send(result);
     });
-    app.put("/teachers-profile/:id", async (req, res) => {
+    app.put("/teachers-profile/:id", verifyToken, async (req, res) => {
       const id = req.params;
       const data = req.body;
       const filter = { _id: new ObjectId(id) };
@@ -111,7 +126,7 @@ async function run() {
 
     //admin token verification required
 
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyToken, async (req, res) => {
       const query = req.query.query || "";
 
       const searchFilter = {
@@ -133,7 +148,7 @@ async function run() {
       const user = await usersCollection.findOne(filter);
       res.send(user);
     });
-    app.put("/users/:email", async (req, res) => {
+    app.put("/users/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const data = req.body;
       const filter = { email: email };
@@ -146,26 +161,19 @@ async function run() {
 
     //admin token verification required
 
-    app.get("/teachers", async (req, res) => {
+    app.get("/teachers", verifyToken, async (req, res) => {
       const teachers = await teachersCollection.find().toArray();
       res.send(teachers);
     });
 
-    app.get("users/auth/:email", async (req, res) => {
-      const email = req.params.email;
-      const filter = { email };
-      const find = await usersCollection.findOne(filter);
-      console.log(find);
-    });
-
     //class related apis
     //token required
-    app.post("/classes", async (req, res) => {
+    app.post("/classes", verifyToken, async (req, res) => {
       const classInfo = req.body;
       const result = await classesCollection.insertOne(classInfo);
       res.send(result);
     });
-    app.get("/classes", async (req, res) => {
+    app.get("/classes", verifyToken, async (req, res) => {
       const result = await classesCollection.find().toArray();
       res.send(result);
     });
@@ -196,7 +204,7 @@ async function run() {
       }
     });
 
-    app.delete("/classes/:id", async (req, res) => {
+    app.delete("/classes/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
 
       try {
@@ -215,7 +223,7 @@ async function run() {
       }
     });
 
-    app.put("/classes/:id", async (req, res) => {
+    app.put("/classes/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const updatedClass = req.body;
       const filter = { _id: new ObjectId(id) };
@@ -228,7 +236,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/classes/teacher/:email", async (req, res) => {
+    app.get("/classes/teacher/:email", verifyToken, async (req, res) => {
       const { email } = req.params;
 
       try {
@@ -240,28 +248,35 @@ async function run() {
       }
     });
 
-    app.get('/stats', async (req, res) => {
+    app.get("/stats", async (req, res) => {
       try {
         const totalUsers = await usersCollection.countDocuments();
         const totalClasses = await classesCollection.countDocuments();
-        const totalEnrollments = await classesCollection.aggregate([
-          { $group: { _id: null, totalEnrollment: { $sum: "$totalEnrolment" } } }
-        ]).toArray();
-    
+        const totalEnrollments = await classesCollection
+          .aggregate([
+            {
+              $group: {
+                _id: null,
+                totalEnrollment: { $sum: "$totalEnrolment" },
+              },
+            },
+          ])
+          .toArray();
+
         res.send({
           totalUsers,
           totalClasses,
-          totalEnrollments: totalEnrollments[0].totalEnrollment
+          totalEnrollments: totalEnrollments[0].totalEnrollment,
         });
       } catch (error) {
-        console.error('Error fetching stats:', error);
-        res.status(500).send({ message: 'Error fetching stats' });
+        console.error("Error fetching stats:", error);
+        res.status(500).send({ message: "Error fetching stats" });
       }
     });
-    
+
     //payment related apis
 
-    app.post("/payments", async (req, res) => {
+    app.post("/payments", verifyToken, async (req, res) => {
       const { classId, amount, userEmail } = req.body;
 
       try {
@@ -312,7 +327,7 @@ async function run() {
       }
     });
 
-    app.get("/enrollments/:userEmail", async (req, res) => {
+    app.get("/enrollments/:userEmail", verifyToken, async (req, res) => {
       const { userEmail } = req.params;
 
       try {
@@ -334,7 +349,7 @@ async function run() {
     });
 
     //assignments
-    app.post("/assignments", async (req, res) => {
+    app.post("/assignments", verifyToken, async (req, res) => {
       const { classId, title, description, deadline } = req.body;
 
       try {
@@ -354,7 +369,7 @@ async function run() {
       }
     });
 
-    app.get("/submissions/class/:id/count", async (req, res) => {
+    app.get("/submissions/class/:id/count", verifyToken, async (req, res) => {
       const { id } = req.params;
 
       try {
@@ -368,7 +383,7 @@ async function run() {
       }
     });
 
-    app.get("/assignments/class/:id", async (req, res) => {
+    app.get("/assignments/class/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
 
       try {
@@ -382,7 +397,7 @@ async function run() {
       }
     });
 
-    app.post("/assignments/submit", async (req, res) => {
+    app.post("/assignments/submit", verifyToken, async (req, res) => {
       const { assignmentId, userEmail, classId, submissionLink } = req.body;
       try {
         const existingSubmission = await submissionsCollection.findOne({
@@ -422,7 +437,7 @@ async function run() {
         res.status(500).send({ message: "Error submitting assignment" });
       }
     });
-    app.post("/evaluations", async (req, res) => {
+    app.post("/evaluations", verifyToken, async (req, res) => {
       const { classId, userEmail, userImage, description, rating } = req.body;
 
       try {
