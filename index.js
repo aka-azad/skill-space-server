@@ -98,13 +98,14 @@ async function run() {
     });
 
     //token verification needed
-    app.post("/teachers", verifyToken, async (req, res) => {
+    app.post("/teacher-requests", verifyToken, async (req, res) => {
       const data = req.body;
 
       const result = await teachersCollection.insertOne(data);
 
       res.send(result);
     });
+
     app.put("/teachers/:id", verifyToken, async (req, res) => {
       const id = req.params;
       const data = req.body;
@@ -114,6 +115,15 @@ async function run() {
 
       res.send(result);
     });
+    app.put("/teacher-requests/:id", verifyToken, async (req, res) => {
+      const id = req.params;
+      const {status} = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = { $set: {status} };
+      const result = await teachersCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
     app.put("/teachers-profile/:id", verifyToken, async (req, res) => {
       const id = req.params;
       const data = req.body;
@@ -125,8 +135,27 @@ async function run() {
       res.send(result);
     });
 
-    //admin token verification required
+    app.get("/teachers", verifyToken, async (req, res) => {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+      const teachers = await teachersCollection
+        .find()
+        .skip(skip)
+        .limit(limit)
+        .toArray();
+      const totalTeachers = await teachersCollection.countDocuments();
+      res.send({ teachers, totalTeachers });
+    });
 
+    app.get("/teachers/:email", async (req, res) => {
+      const email = req.params.email;
+      
+      const filter = { email };
+      const result = await teachersCollection.findOne(filter);
+      console.log(email, result)
+      res.send(result);
+    });
     app.get("/users", verifyToken, async (req, res) => {
       const query = req.query.query || "";
       const page = parseInt(req.query.page) || 1;
@@ -165,21 +194,6 @@ async function run() {
       };
       const result = await usersCollection.updateOne(filter, updateDoc);
       res.send(result);
-    });
-
-    //admin token verification required
-
-    app.get("/teachers", verifyToken, async (req, res) => {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
-      const skip = (page - 1) * limit;
-      const teachers = await teachersCollection
-        .find()
-        .skip(skip)
-        .limit(limit)
-        .toArray();
-      const totalTeachers = await teachersCollection.countDocuments();
-      res.send({ teachers, totalTeachers });
     });
 
     //class related apis
