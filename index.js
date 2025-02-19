@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors({ origin: "https://skill-space-by-ashraf.web.app" }));
+app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 
@@ -313,6 +313,39 @@ async function run() {
       }
     });
 
+    app.get("/revenue", verifyToken, async (req, res) => {
+      try {
+        const totalRevenue = await paymentsCollection.aggregate([
+          {
+            $group: {
+              _id: null,
+              total: { $sum: "$amount" }, 
+            },
+          },
+        ]).toArray();
+    
+        res.send({ totalRevenue: totalRevenue[0]?.total || 0 });
+      } catch (error) {
+        console.error("Error fetching revenue:", error);
+        res.status(500).send({ message: "Error fetching revenue" });
+      }
+    });
+    
+    app.get("/courseSalesChart", verifyToken, async (req, res) => {
+      try {
+        const topCourses = await classesCollection
+        .find({}, { projection: { _id: 1, title: 1, totalEnrolment: 1 } }) // Fetch only required fields
+        .sort({ totalEnrolment: -1 }) // Sort by most enrollments
+        .limit(10) // Get top 10 courses
+        .toArray();
+
+      res.json(topCourses);
+      } catch (error) {
+        console.error("Error fetching course sales data:", error);
+        res.status(500).send({ message: "Error fetching course sales data" });
+      }
+    });
+    
     //payment related apis
 
     app.post("/payments", verifyToken, async (req, res) => {
@@ -544,10 +577,10 @@ async function run() {
     });
 
     // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
-    // console.log(
-    //   "Pinged your deployment. You successfully connected to MongoDB!"
-    // );
+    await client.db("admin").command({ ping: 1 });
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
